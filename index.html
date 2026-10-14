@@ -11,10 +11,10 @@
     //
     // Safari читает значок вкладки только при загрузке страницы и не замечает,
     // если его поменять позже. Поэтому значок вписываем сразу, пока страница
-    // разбирается. Какой значок вписать, подсказывает параметр ?ic= :
-    //   нет      - первая попытка: значок со страницы или /favicon.ico
-    //   ic=URL   - проверенный значок сайта
-    //   ic=letter - у сайта значка нет: первая буква сайта
+    // разбирается, и всегда как встроенную картинку (data:), чтобы Safari
+    // не пришлось загружать его с чужого сайта - иначе он рисует заглушку.
+    //   - значок сайта уже найден раньше - берём его из памяти страницы;
+    //   - ещё не искали или у сайта значка не взять - первая буква сайта.
     window.TS = (function () {
       var ts = { ok: false };
       try {
@@ -31,7 +31,7 @@
         ts.fav = /^https?:\/\//i.test(hash.get("f") || "") ? hash.get("f") : "";
         ts.auto = hash.get("a") === "1";
         ts.letter = (ts.host[0] || "?").toUpperCase();
-        ts.ic = query.get("ic") || "";
+        ts.key = "ts-icon:" + ts.host;
 
         ts.letterIcon = function () {
           var c = document.createElement("canvas");
@@ -51,13 +51,11 @@
           return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         };
 
-        if (ts.ic === "letter") {
-          ts.icon = ts.letterIcon();
-        } else if (/^https?:\/\//i.test(ts.ic)) {
-          ts.icon = ts.ic;
-        } else {
-          ts.icon = ts.fav || ts.origin + "/favicon.ico";
-        }
+        var cached = null;
+        try { cached = JSON.parse(localStorage.getItem(ts.key) || "null"); } catch (e) {}
+        ts.cached = !!(cached && cached.v && Date.now() - cached.ts < 30 * 864e5);
+        ts.icon = ts.cached && cached.v !== "letter" ? cached.v : ts.letterIcon();
+        ts.hasImage = ts.cached && cached.v !== "letter";
         document.write('<link rel="icon" href="' + esc(ts.icon) + '">');
         document.write('<link rel="shortcut icon" href="' + esc(ts.icon) + '">');
         document.title = "💤 " + ts.title;
@@ -145,17 +143,30 @@
         $("icon").appendChild(img);
       }
 
-      // Значок уже проверен на прошлой загрузке - просто показываем его
-      if (ts.ic === "letter") return;
-      if (ts.ic) { showInPage(ts.icon); return; }
+      // Значок уже найден раньше (или у сайта его не взять) - всё уже на месте
+      if (ts.hasImage) showInPage(ts.icon);
+      if (ts.cached) return;
 
-      // Первая загрузка: проверяем, какой значок у сайта действительно есть
-      function tryLoad(src) {
+      // Первая загрузка для этого сайта: пробуем встроить настоящий значок.
+      // Получится только если сайт разрешает брать значок с других страниц.
+      function toDataUrl(src) {
         return new Promise(function (resolve) {
           var img = new Image();
-          var t = setTimeout(function () { resolve(false); }, 5000);
-          img.onload = function () { clearTimeout(t); resolve(img.naturalWidth > 1); };
-          img.onerror = function () { clearTimeout(t); resolve(false); };
+          img.crossOrigin = "anonymous";
+          var t = setTimeout(function () { resolve(""); }, 5000);
+          img.onload = function () {
+            clearTimeout(t);
+            try {
+              if (img.naturalWidth < 2) return resolve("");
+              var c = document.createElement("canvas");
+              c.width = c.height = 64;
+              c.getContext("2d").drawImage(img, 0, 0, 64, 64);
+              resolve(c.toDataURL("image/png"));
+            } catch (e) {
+              resolve("");
+            }
+          };
+          img.onerror = function () { clearTimeout(t); resolve(""); };
           img.src = src;
         });
       }
@@ -166,18 +177,16 @@
       candidates = candidates.filter(function (c, i) { return candidates.indexOf(c) === i; });
 
       (async function () {
-        var found = "";
-        for (var i = 0; i < candidates.length; i++) {
-          if (await tryLoad(candidates[i])) { found = candidates[i]; break; }
+        var data = "";
+        for (var i = 0; i < candidates.length && !data; i++) data = await toDataUrl(candidates[i]);
+        try {
+          localStorage.setItem(ts.key, JSON.stringify({ v: data || "letter", ts: Date.now() }));
+        } catch (e) {
+          return;
         }
-        if (found) showInPage(found);
-        // Вписанный при загрузке значок подошёл - ничего не делаем
-        if (found && found === ts.icon) return;
-        // Иначе один раз перезагружаемся с правильным значком (или буквой),
-        // чтобы Safari подхватил его при загрузке. # и всё после него сохраняются.
-        var next = new URL(location.href);
-        next.searchParams.set("ic", found || "letter");
-        location.replace(next.href);
+        // Нашли значок - перезагружаемся один раз, чтобы Safari взял его при загрузке.
+        // Не нашли - буква уже стоит, ничего не делаем.
+        if (data) location.reload();
       })();
     })();
   </script>
