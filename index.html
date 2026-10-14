@@ -4,7 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
-  <title>💤</title>
   <script>
     // Страница сна Tab Sleeper. Адрес и название страницы - в части ссылки
     // после #, она не отправляется на сервер. Работает и без расширения.
@@ -56,12 +55,16 @@
         ts.cached = !!(cached && cached.v && Date.now() - cached.ts < 30 * 864e5);
         ts.icon = ts.cached && cached.v !== "letter" ? cached.v : ts.letterIcon();
         ts.hasImage = ts.cached && cached.v !== "letter";
+        // Название вписываем прямо в тег <title> при разборе страницы -
+        // Safari берёт название вкладки оттуда
+        ts.fullTitle = "💤 " + ts.title;
+        document.write("<title>" + esc(ts.fullTitle) + "</title>");
         document.write('<link rel="icon" href="' + esc(ts.icon) + '">');
         document.write('<link rel="shortcut icon" href="' + esc(ts.icon) + '">');
-        document.title = "💤 " + ts.title;
       } catch (e) {
         ts.ok = false;
       }
+      if (!ts.ok) document.write("<title>💤 Tab Sleeper</title>");
       return ts;
     })();
   </script>
@@ -104,7 +107,7 @@
     <p class="url" id="url"></p>
     <p class="hint" id="hint">Нажми в любом месте или Enter, чтобы вернуть страницу</p>
   </main>
-  <footer>Tab Sleeper - страница выгружена из памяти</footer>
+  <footer>Tab Sleeper - страница выгружена из памяти · v5</footer>
   <script>
     (function () {
       var ts = window.TS;
@@ -117,6 +120,13 @@
       }
 
       $("title").textContent = ts.title;
+      // ещё раз ставим название после загрузки - на случай, если Safari
+      // запомнил название, пока страница разбиралась
+      function applyTitle() { if (document.title !== ts.fullTitle) document.title = ts.fullTitle; }
+      applyTitle();
+      window.addEventListener("load", applyTitle);
+      setTimeout(applyTitle, 1000);
+      document.addEventListener("visibilitychange", applyTitle);
       $("url").textContent = ts.target;
       $("icon").textContent = ts.letter;
 
