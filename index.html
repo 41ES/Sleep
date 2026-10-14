@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>💤</title>
+  <link rel="icon" id="favicon" href="data:,">
+  <style>
+    :root { --bg:#f4f4f7; --card:#fff; --text:#1c1c22; --muted:#6b6b78; --accent:#5b5bd6; --border:#e3e3ea; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#17171c; --card:#222229; --text:#ececf1; --muted:#9a9aa8; --accent:#8b8bf0; --border:#33333d; }
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--bg); color: var(--text);
+      font: 15px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      cursor: pointer; padding: 16px;
+    }
+    main {
+      background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+      padding: 32px 36px; max-width: 560px; width: 100%; text-align: center; outline: none;
+      transition: transform .15s ease, border-color .15s ease;
+    }
+    body:hover main, main:focus-visible { border-color: var(--accent); transform: translateY(-2px); }
+    .icon {
+      width: 48px; height: 48px; margin: 0 auto 16px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--accent); color: #fff; font-weight: 700; font-size: 22px; overflow: hidden;
+    }
+    .icon img { width: 32px; height: 32px; }
+    .icon.has-img { background: transparent; }
+    h1 { font-size: 19px; margin: 0 0 6px; overflow-wrap: anywhere; }
+    .url { color: var(--muted); font-size: 13px; margin: 0 0 20px; overflow-wrap: anywhere; }
+    .hint { color: var(--accent); font-size: 13px; margin: 0; }
+    footer { color: var(--muted); font-size: 12px; margin-top: 18px; }
+  </style>
+</head>
+<body>
+  <main id="card" tabindex="0" role="button" aria-label="Вернуть страницу">
+    <div class="icon" id="icon">💤</div>
+    <h1 id="title">Вкладка спит</h1>
+    <p class="url" id="url"></p>
+    <p class="hint" id="hint">Нажми в любом месте или Enter, чтобы вернуть страницу</p>
+  </main>
+  <footer>Tab Sleeper - страница выгружена из памяти</footer>
+  <script>
+    // Страница сна Tab Sleeper. Все данные - в части ссылки после #,
+    // она не отправляется на сервер. Работает и без расширения.
+    (function () {
+      var p = new URLSearchParams(location.hash.slice(1));
+      var target = p.get("u") || "";
+      var title = p.get("t") || target;
+      var fav = p.get("f") || "";
+      var auto = p.get("a") === "1";
+      var valid = /^https?:\/\//i.test(target);
+      var $ = function (id) { return document.getElementById(id); };
+
+      if (!valid) {
+        $("title").textContent = "Не удалось определить адрес страницы";
+        $("hint").textContent = "";
+        return;
+      }
+
+      document.title = "💤 " + title;
+      $("title").textContent = title;
+      $("url").textContent = target;
+
+      var host = "";
+      try { host = new URL(target).hostname.replace(/^www\./, ""); } catch (e) {}
+      var letter = (host[0] || "?").toUpperCase();
+      $("icon").textContent = letter;
+
+      function restore() { location.replace(target); }
+      document.body.addEventListener("click", restore);
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); restore(); }
+      });
+
+      if (auto) {
+        var wasHidden = document.visibilityState === "hidden";
+        document.addEventListener("visibilitychange", function () {
+          if (document.visibilityState === "hidden") wasHidden = true;
+          else if (wasHidden) restore();
+        });
+      }
+
+      // Значок вкладки = значок сайта
+      function setFavicon(href) {
+        var old = document.querySelectorAll('link[rel~="icon"]');
+        for (var i = 0; i < old.length; i++) old[i].remove();
+        var link = document.createElement("link");
+        link.rel = "icon";
+        link.href = href;
+        document.head.appendChild(link);
+      }
+      function tryLoad(src) {
+        return new Promise(function (resolve) {
+          var img = new Image();
+          var t = setTimeout(function () { resolve(false); }, 4000);
+          img.onload = function () { clearTimeout(t); resolve(img.naturalWidth > 0); };
+          img.onerror = function () { clearTimeout(t); resolve(false); };
+          img.src = src;
+        });
+      }
+      function letterIcon() {
+        var c = document.createElement("canvas");
+        c.width = c.height = 64;
+        var g = c.getContext("2d");
+        g.fillStyle = "#5b5bd6";
+        g.fillRect(0, 0, 64, 64);
+        g.fillStyle = "#fff";
+        g.font = "bold 38px -apple-system, sans-serif";
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.fillText(letter, 32, 35);
+        return c.toDataURL("image/png");
+      }
+      var candidates = [];
+      if (/^(https?:|data:image\/)/i.test(fav)) candidates.push(fav);
+      try {
+        var origin = new URL(target).origin;
+        candidates.push(origin + "/favicon.ico", origin + "/apple-touch-icon.png");
+      } catch (e) {}
+
+      (async function () {
+        for (var i = 0; i < candidates.length; i++) {
+          if (await tryLoad(candidates[i])) {
+            setFavicon(candidates[i]);
+            var img = document.createElement("img");
+            img.src = candidates[i];
+            img.alt = "";
+            $("icon").textContent = "";
+            $("icon").classList.add("has-img");
+            $("icon").appendChild(img);
+            return;
+          }
+        }
+        setFavicon(letterIcon());
+      })();
+    })();
+  </script>
+</body>
+</html>
