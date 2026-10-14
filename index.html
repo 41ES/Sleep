@@ -5,7 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
   <title>💤</title>
-  <link rel="icon" id="favicon" href="data:,">
+  <script>
+    // Safari читает значок вкладки только при загрузке страницы и не замечает,
+    // если его поменять позже. Поэтому значок сайта вписываем прямо сейчас,
+    // пока страница ещё разбирается, - как будто он был в коде изначально.
+    (function () {
+      try {
+        var p = new URLSearchParams(location.hash.slice(1));
+        var target = new URL(p.get("u") || "");
+        if (!/^https?:$/.test(target.protocol)) return;
+        var fav = p.get("f") || "";
+        var href = /^https?:\/\//i.test(fav) ? fav : target.origin + "/favicon.ico";
+        var esc = href.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        document.write('<link rel="icon" href="' + esc + '">');
+        document.write('<link rel="shortcut icon" href="' + esc + '">');
+        document.write('<link rel="apple-touch-icon" href="' + target.origin.replace(/"/g, "") + '/apple-touch-icon.png">');
+        document.title = "💤 " + (p.get("t") || target.hostname);
+      } catch (e) {}
+    })();
+  </script>
   <style>
     :root { --bg:#f4f4f7; --card:#fff; --text:#1c1c22; --muted:#6b6b78; --accent:#5b5bd6; --border:#e3e3ea; }
     @media (prefers-color-scheme: dark) {
@@ -128,7 +146,8 @@
       (async function () {
         for (var i = 0; i < candidates.length; i++) {
           if (await tryLoad(candidates[i])) {
-            setFavicon(candidates[i]);
+            // первый вариант уже вписан при загрузке - не трогаем, чтобы Safari его не потерял
+            if (i > 0) setFavicon(candidates[i]);
             var img = document.createElement("img");
             img.src = candidates[i];
             img.alt = "";
