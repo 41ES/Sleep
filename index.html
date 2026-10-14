@@ -10,10 +10,11 @@
     //
     // Safari читает значок вкладки только при загрузке страницы и не замечает,
     // если его поменять позже. Поэтому значок вписываем сразу, пока страница
-    // разбирается, и всегда как встроенную картинку (data:), чтобы Safari
-    // не пришлось загружать его с чужого сайта - иначе он рисует заглушку.
-    //   - значок сайта уже найден раньше - берём его из памяти страницы;
-    //   - ещё не искали или у сайта значка не взять - первая буква сайта.
+    // разбирается. Что вписать, страница выясняет при первом визите на сайт
+    // и запоминает на 30 дней:
+    //   1) значок, встроенный в страницу (data:) - если сайт это разрешает;
+    //   2) ссылка на значок сайта - если встроить нельзя, но он загружается;
+    //   3) первая буква сайта - если значок не загружается вообще.
     window.TS = (function () {
       var ts = { ok: false };
       try {
@@ -30,7 +31,7 @@
         ts.fav = /^https?:\/\//i.test(hash.get("f") || "") ? hash.get("f") : "";
         ts.auto = hash.get("a") === "1";
         ts.letter = (ts.host[0] || "?").toUpperCase();
-        ts.key = "ts-icon:" + ts.host;
+        ts.key = "ts-icon-v6:" + ts.host; // v6: новый ключ - старые запомненные буквы не используются
 
         ts.letterIcon = function () {
           var c = document.createElement("canvas");
@@ -53,8 +54,8 @@
         var cached = null;
         try { cached = JSON.parse(localStorage.getItem(ts.key) || "null"); } catch (e) {}
         ts.cached = !!(cached && cached.v && Date.now() - cached.ts < 30 * 864e5);
-        ts.icon = ts.cached && cached.v !== "letter" ? cached.v : ts.letterIcon();
         ts.hasImage = ts.cached && cached.v !== "letter";
+        ts.icon = ts.hasImage ? cached.v : ts.letterIcon();
         // Название вписываем прямо в тег <title> при разборе страницы -
         // Safari берёт название вкладки оттуда
         ts.fullTitle = "💤 " + ts.title;
@@ -107,7 +108,7 @@
     <p class="url" id="url"></p>
     <p class="hint" id="hint">Нажми в любом месте или Enter, чтобы вернуть страницу</p>
   </main>
-  <footer>Tab Sleeper - страница выгружена из памяти · v5</footer>
+  <footer>Tab Sleeper - страница выгружена из памяти · v6</footer>
   <script>
     (function () {
       var ts = window.TS;
@@ -186,17 +187,32 @@
       candidates.push(ts.origin + "/favicon.ico", ts.origin + "/apple-touch-icon.png");
       candidates = candidates.filter(function (c, i) { return candidates.indexOf(c) === i; });
 
+      function plainLoad(src) {
+        return new Promise(function (resolve) {
+          var img = new Image();
+          var t = setTimeout(function () { resolve(false); }, 5000);
+          img.onload = function () { clearTimeout(t); resolve(img.naturalWidth > 1); };
+          img.onerror = function () { clearTimeout(t); resolve(false); };
+          img.src = src;
+        });
+      }
+
       (async function () {
-        var data = "";
-        for (var i = 0; i < candidates.length && !data; i++) data = await toDataUrl(candidates[i]);
+        var result = "";
+        // 1) встроить значок
+        for (var i = 0; i < candidates.length && !result; i++) result = await toDataUrl(candidates[i]);
+        // 2) встроить нельзя - берём ссылку на значок, если он загружается
+        for (var j = 0; j < candidates.length && !result; j++) {
+          if (await plainLoad(candidates[j])) result = candidates[j];
+        }
         try {
-          localStorage.setItem(ts.key, JSON.stringify({ v: data || "letter", ts: Date.now() }));
+          localStorage.setItem(ts.key, JSON.stringify({ v: result || "letter", ts: Date.now() }));
         } catch (e) {
           return;
         }
         // Нашли значок - перезагружаемся один раз, чтобы Safari взял его при загрузке.
-        // Не нашли - буква уже стоит, ничего не делаем.
-        if (data) location.reload();
+        // 3) Не нашли - буква уже стоит, ничего не делаем.
+        if (result) location.reload();
       })();
     })();
   </script>
