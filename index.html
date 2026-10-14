@@ -6,22 +6,65 @@
   <meta name="robots" content="noindex">
   <title>💤</title>
   <script>
+    // Страница сна Tab Sleeper. Адрес и название страницы - в части ссылки
+    // после #, она не отправляется на сервер. Работает и без расширения.
+    //
     // Safari читает значок вкладки только при загрузке страницы и не замечает,
-    // если его поменять позже. Поэтому значок сайта вписываем прямо сейчас,
-    // пока страница ещё разбирается, - как будто он был в коде изначально.
-    (function () {
+    // если его поменять позже. Поэтому значок вписываем сразу, пока страница
+    // разбирается. Какой значок вписать, подсказывает параметр ?ic= :
+    //   нет      - первая попытка: значок со страницы или /favicon.ico
+    //   ic=URL   - проверенный значок сайта
+    //   ic=letter - у сайта значка нет: первая буква сайта
+    window.TS = (function () {
+      var ts = { ok: false };
       try {
-        var p = new URLSearchParams(location.hash.slice(1));
-        var target = new URL(p.get("u") || "");
-        if (!/^https?:$/.test(target.protocol)) return;
-        var fav = p.get("f") || "";
-        var href = /^https?:\/\//i.test(fav) ? fav : target.origin + "/favicon.ico";
-        var esc = href.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        document.write('<link rel="icon" href="' + esc + '">');
-        document.write('<link rel="shortcut icon" href="' + esc + '">');
-        document.write('<link rel="apple-touch-icon" href="' + target.origin.replace(/"/g, "") + '/apple-touch-icon.png">');
-        document.title = "💤 " + (p.get("t") || target.hostname);
-      } catch (e) {}
+        var hash = new URLSearchParams(location.hash.slice(1));
+        var query = new URLSearchParams(location.search);
+        var target = new URL(hash.get("u") || "");
+        if (!/^https?:$/.test(target.protocol)) return ts;
+
+        ts.ok = true;
+        ts.target = target.href;
+        ts.origin = target.origin;
+        ts.host = target.hostname.replace(/^www\./, "");
+        ts.title = hash.get("t") || target.hostname;
+        ts.fav = /^https?:\/\//i.test(hash.get("f") || "") ? hash.get("f") : "";
+        ts.auto = hash.get("a") === "1";
+        ts.letter = (ts.host[0] || "?").toUpperCase();
+        ts.ic = query.get("ic") || "";
+
+        ts.letterIcon = function () {
+          var c = document.createElement("canvas");
+          c.width = c.height = 64;
+          var g = c.getContext("2d");
+          g.fillStyle = "#5b5bd6";
+          g.fillRect(0, 0, 64, 64);
+          g.fillStyle = "#fff";
+          g.font = "bold 40px -apple-system, Helvetica, sans-serif";
+          g.textAlign = "center";
+          g.textBaseline = "middle";
+          g.fillText(ts.letter, 32, 35);
+          return c.toDataURL("image/png");
+        };
+
+        var esc = function (s) {
+          return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        };
+
+        if (ts.ic === "letter") {
+          ts.icon = ts.letterIcon();
+        } else if (/^https?:\/\//i.test(ts.ic)) {
+          ts.icon = ts.ic;
+        } else {
+          ts.icon = ts.fav || ts.origin + "/favicon.ico";
+        }
+        document.write('<link rel="icon" href="' + esc(ts.icon) + '">');
+        document.write('<link rel="shortcut icon" href="' + esc(ts.icon) + '">');
+        document.title = "💤 " + ts.title;
+      } catch (e) {
+        ts.ok = false;
+      }
+      return ts;
     })();
   </script>
   <style>
@@ -65,39 +108,27 @@
   </main>
   <footer>Tab Sleeper - страница выгружена из памяти</footer>
   <script>
-    // Страница сна Tab Sleeper. Все данные - в части ссылки после #,
-    // она не отправляется на сервер. Работает и без расширения.
     (function () {
-      var p = new URLSearchParams(location.hash.slice(1));
-      var target = p.get("u") || "";
-      var title = p.get("t") || target;
-      var fav = p.get("f") || "";
-      var auto = p.get("a") === "1";
-      var valid = /^https?:\/\//i.test(target);
+      var ts = window.TS;
       var $ = function (id) { return document.getElementById(id); };
 
-      if (!valid) {
+      if (!ts.ok) {
         $("title").textContent = "Не удалось определить адрес страницы";
         $("hint").textContent = "";
         return;
       }
 
-      document.title = "💤 " + title;
-      $("title").textContent = title;
-      $("url").textContent = target;
+      $("title").textContent = ts.title;
+      $("url").textContent = ts.target;
+      $("icon").textContent = ts.letter;
 
-      var host = "";
-      try { host = new URL(target).hostname.replace(/^www\./, ""); } catch (e) {}
-      var letter = (host[0] || "?").toUpperCase();
-      $("icon").textContent = letter;
-
-      function restore() { location.replace(target); }
+      function restore() { location.replace(ts.target); }
       document.body.addEventListener("click", restore);
       document.addEventListener("keydown", function (e) {
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); restore(); }
       });
 
-      if (auto) {
+      if (ts.auto) {
         var wasHidden = document.visibilityState === "hidden";
         document.addEventListener("visibilitychange", function () {
           if (document.visibilityState === "hidden") wasHidden = true;
@@ -105,59 +136,48 @@
         });
       }
 
-      // Значок вкладки = значок сайта
-      function setFavicon(href) {
-        var old = document.querySelectorAll('link[rel~="icon"]');
-        for (var i = 0; i < old.length; i++) old[i].remove();
-        var link = document.createElement("link");
-        link.rel = "icon";
-        link.href = href;
-        document.head.appendChild(link);
+      function showInPage(src) {
+        var img = document.createElement("img");
+        img.src = src;
+        img.alt = "";
+        $("icon").textContent = "";
+        $("icon").classList.add("has-img");
+        $("icon").appendChild(img);
       }
+
+      // Значок уже проверен на прошлой загрузке - просто показываем его
+      if (ts.ic === "letter") return;
+      if (ts.ic) { showInPage(ts.icon); return; }
+
+      // Первая загрузка: проверяем, какой значок у сайта действительно есть
       function tryLoad(src) {
         return new Promise(function (resolve) {
           var img = new Image();
-          var t = setTimeout(function () { resolve(false); }, 4000);
-          img.onload = function () { clearTimeout(t); resolve(img.naturalWidth > 0); };
+          var t = setTimeout(function () { resolve(false); }, 5000);
+          img.onload = function () { clearTimeout(t); resolve(img.naturalWidth > 1); };
           img.onerror = function () { clearTimeout(t); resolve(false); };
           img.src = src;
         });
       }
-      function letterIcon() {
-        var c = document.createElement("canvas");
-        c.width = c.height = 64;
-        var g = c.getContext("2d");
-        g.fillStyle = "#5b5bd6";
-        g.fillRect(0, 0, 64, 64);
-        g.fillStyle = "#fff";
-        g.font = "bold 38px -apple-system, sans-serif";
-        g.textAlign = "center";
-        g.textBaseline = "middle";
-        g.fillText(letter, 32, 35);
-        return c.toDataURL("image/png");
-      }
+
       var candidates = [];
-      if (/^(https?:|data:image\/)/i.test(fav)) candidates.push(fav);
-      try {
-        var origin = new URL(target).origin;
-        candidates.push(origin + "/favicon.ico", origin + "/apple-touch-icon.png");
-      } catch (e) {}
+      if (ts.fav) candidates.push(ts.fav);
+      candidates.push(ts.origin + "/favicon.ico", ts.origin + "/apple-touch-icon.png");
+      candidates = candidates.filter(function (c, i) { return candidates.indexOf(c) === i; });
 
       (async function () {
+        var found = "";
         for (var i = 0; i < candidates.length; i++) {
-          if (await tryLoad(candidates[i])) {
-            // первый вариант уже вписан при загрузке - не трогаем, чтобы Safari его не потерял
-            if (i > 0) setFavicon(candidates[i]);
-            var img = document.createElement("img");
-            img.src = candidates[i];
-            img.alt = "";
-            $("icon").textContent = "";
-            $("icon").classList.add("has-img");
-            $("icon").appendChild(img);
-            return;
-          }
+          if (await tryLoad(candidates[i])) { found = candidates[i]; break; }
         }
-        setFavicon(letterIcon());
+        if (found) showInPage(found);
+        // Вписанный при загрузке значок подошёл - ничего не делаем
+        if (found && found === ts.icon) return;
+        // Иначе один раз перезагружаемся с правильным значком (или буквой),
+        // чтобы Safari подхватил его при загрузке. # и всё после него сохраняются.
+        var next = new URL(location.href);
+        next.searchParams.set("ic", found || "letter");
+        location.replace(next.href);
       })();
     })();
   </script>
