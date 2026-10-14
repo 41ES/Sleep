@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
+  <meta name="color-scheme" content="dark">
   <script>
     // Страница сна Tab Sleeper. Адрес и название страницы - в части ссылки
     // после #, она не отправляется на сервер. Работает и без расширения.
@@ -71,10 +72,8 @@
     })();
   </script>
   <style>
-    :root { --bg:#f4f4f7; --card:#fff; --text:#1c1c22; --muted:#6b6b78; --accent:#5b5bd6; --border:#e3e3ea; }
-    @media (prefers-color-scheme: dark) {
-      :root { --bg:#17171c; --card:#222229; --text:#ececf1; --muted:#9a9aa8; --accent:#8b8bf0; --border:#33333d; }
-    }
+    /* страница сна всегда тёмная */
+    :root { --bg:#17171c; --card:#222229; --text:#ececf1; --muted:#9a9aa8; --accent:#8b8bf0; --border:#33333d; color-scheme: dark; }
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; }
     body {
@@ -109,7 +108,7 @@
     <p class="url" id="url"></p>
     <p class="hint" id="hint">Нажми в любом месте или Enter, чтобы вернуть страницу</p>
   </main>
-  <footer>Tab Sleeper - страница выгружена из памяти · v7</footer>
+  <footer>Tab Sleeper - страница выгружена из памяти · v8</footer>
   <script>
     (function () {
       var ts = window.TS;
