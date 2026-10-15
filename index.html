@@ -38,7 +38,7 @@
           var c = document.createElement("canvas");
           c.width = c.height = 64;
           var g = c.getContext("2d");
-          g.fillStyle = "#5b5bd6";
+          g.fillStyle = "#7a5af8";
           g.fillRect(0, 0, 64, 64);
           g.fillStyle = "#fff";
           g.font = "bold 40px -apple-system, Helvetica, sans-serif";
@@ -59,14 +59,15 @@
         ts.icon = ts.hasImage ? cached.v : ts.letterIcon();
         // Название вписываем прямо в тег <title> при разборе страницы -
         // Safari берёт название вкладки оттуда
-        ts.fullTitle = ts.title.replace(/^(\s*zZ\s+)+/, "");
+        // Буквы, а не эмодзи: полоса вкладок Safari убирает эмодзи из начала названия
+        ts.fullTitle = "zZ " + ts.title.replace(/^(\s*zZ\s+)+/, "");
         document.write("<title>" + esc(ts.fullTitle) + "</title>");
         document.write('<link rel="icon" href="' + esc(ts.icon) + '">');
         document.write('<link rel="shortcut icon" href="' + esc(ts.icon) + '">');
       } catch (e) {
         ts.ok = false;
       }
-      if (!ts.ok) document.write("<title>Tab Sleeper</title>");
+      if (!ts.ok) document.write("<title>zZ Tab Sleeper</title>");
       return ts;
     })();
   </script>
@@ -107,7 +108,7 @@
     <p class="url" id="url"></p>
     <p class="hint" id="hint">Нажми в любом месте или Enter, чтобы вернуть страницу</p>
   </main>
-  <footer>Tab Sleeper - страница выгружена из памяти · v9</footer>
+  <footer>Tab Sleeper - страница выгружена из памяти · v10</footer>
   <script>
     (function () {
       var ts = window.TS;
