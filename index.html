@@ -31,7 +31,15 @@
         ts.title = hash.get("t") || target.hostname;
         ts.fav = /^https?:\/\//i.test(hash.get("f") || "") ? hash.get("f") : "";
         ts.auto = hash.get("a") === "1";
-        ts.letter = (ts.host[0] || "?").toUpperCase();
+        // буква по имени сайта, а не по поддомену: app.notion.com - N, mail.google.com - G
+        ts.letter = (function (h) {
+          if (/^[\d.]+$/.test(h) || h.indexOf(":") >= 0) return (h[0] || "?").toUpperCase();
+          var parts = h.split(".").filter(Boolean);
+          var i = parts.length - 2;
+          if (i < 0) i = 0;
+          if (i > 0 && /^(co|com|net|org|gov|edu|ac)$/.test(parts[i]) && parts[parts.length - 1].length === 2) i--;
+          return ((parts[i] || "?")[0] || "?").toUpperCase();
+        })(ts.host);
         ts.key = "ts-icon-v6:" + ts.host; // v6: новый ключ - старые запомненные буквы не используются
 
         ts.letterIcon = function () {
@@ -108,7 +116,7 @@
     <p class="url" id="url"></p>
     <p class="hint" id="hint">Нажми в любом месте или Enter, чтобы вернуть страницу</p>
   </main>
-  <footer>Tab Sleeper - страница выгружена из памяти · v10</footer>
+  <footer>Tab Sleeper - страница выгружена из памяти · v11</footer>
   <script>
     (function () {
       var ts = window.TS;
