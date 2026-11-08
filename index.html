@@ -40,7 +40,10 @@
           if (i > 0 && /^(co|com|net|org|gov|edu|ac)$/.test(parts[i]) && parts[parts.length - 1].length === 2) i--;
           return ((parts[i] || "?")[0] || "?").toUpperCase();
         })(ts.host);
-        ts.key = "ts-icon-v6:" + ts.host; // v6: новый ключ - старые запомненные буквы не используются
+        // v7: значок теперь запоминаем ссылкой на файл сайта, а не встроенной картинкой -
+        // встроенную Safari не сохраняет, и у вкладок, не открытых после запуска Safari,
+        // вместо значка была серая буква адреса страницы сна ("G" от github.io)
+        ts.key = "ts-icon-v7:" + ts.host;
 
         ts.letterIcon = function () {
           var c = document.createElement("canvas");
@@ -119,7 +122,7 @@
     <p class="url" id="url"></p>
     <p class="hint" id="hint">Нажми в любом месте или Enter, чтобы вернуть страницу</p>
   </main>
-  <footer>Tab Sleeper - страница выгружена из памяти · v12</footer>
+  <footer>Tab Sleeper - страница выгружена из памяти · v13</footer>
   <script>
     (function () {
       var ts = window.TS;
@@ -210,12 +213,12 @@
 
       (async function () {
         var result = "";
-        // 1) встроить значок
-        for (var i = 0; i < candidates.length && !result; i++) result = await toDataUrl(candidates[i]);
-        // 2) встроить нельзя - берём ссылку на значок, если он загружается
+        // 1) ссылка на значок сайта, если он загружается - такой Safari запоминает
         for (var j = 0; j < candidates.length && !result; j++) {
           if (await plainLoad(candidates[j])) result = candidates[j];
         }
+        // 2) ссылка не грузится - пробуем встроить картинку
+        for (var i = 0; i < candidates.length && !result; i++) result = await toDataUrl(candidates[i]);
         try {
           localStorage.setItem(ts.key, JSON.stringify({ v: result || "letter", ts: Date.now() }));
         } catch (e) {
