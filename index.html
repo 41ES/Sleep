@@ -128,7 +128,7 @@
     <p class="url" id="url"></p>
     <p class="hint" id="hint">Нажми в любом месте или Enter, чтобы вернуть страницу</p>
   </main>
-  <footer>Tab Sleeper - страница выгружена из памяти · v14</footer>
+  <footer>Tab Sleeper - страница выгружена из памяти · v15<br><span id="diag" style="opacity:.7"></span></footer>
   <script>
     (function () {
       var ts = window.TS;
@@ -173,6 +173,14 @@
         $("icon").classList.add("has-img");
         $("icon").appendChild(img);
       }
+
+      // Подсказка для поиска причины, если Safari не показывает значок вкладки
+      try {
+        var iconShort = /^data:/.test(ts.icon) ? "картинка" : ts.icon.replace(/^https?:\/\//, "").replace(/\?.*$/, "");
+        if (iconShort.length > 60) iconShort = iconShort.slice(0, 28) + "..." + iconShort.slice(-28);
+        $("diag").textContent = "значок: " + iconShort + " · " + (ts.cached ? "запомнен" : "новый") +
+          (ts.fav ? " · f" : "") + " · адрес " + location.href.length;
+      } catch (e) {}
 
       // Значок уже найден раньше (или у сайта его не взять) - всё уже на месте
       if (ts.hasImage) showInPage(ts.icon);
