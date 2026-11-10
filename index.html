@@ -43,7 +43,11 @@
         // v7: значок теперь запоминаем ссылкой на файл сайта, а не встроенной картинкой -
         // встроенную Safari не сохраняет, и у вкладок, не открытых после запуска Safari,
         // вместо значка была серая буква адреса страницы сна ("G" от github.io)
-        ts.key = "ts-icon-v7:" + ts.host;
+        ts.key = "ts-icon-v8:" + ts.host;
+        // Буква - готовой картинкой из этой же папки (l-Y.png), а не нарисованной на лету:
+        // нарисованную (data:) Safari не запоминает и у неоткрытых вкладок показывает
+        // вместо неё серую букву адреса страницы сна - "G" от github.io
+        ts.letterUrl = new URL("l-" + (/^[A-Z0-9]$/.test(ts.letter) ? ts.letter : "_") + ".png", location.href).href;
 
         ts.letterIcon = function () {
           var c = document.createElement("canvas");
@@ -66,8 +70,10 @@
         var cached = null;
         try { cached = JSON.parse(localStorage.getItem(ts.key) || "null"); } catch (e) {}
         ts.cached = !!(cached && cached.v && Date.now() - cached.ts < 30 * 864e5);
-        ts.hasImage = ts.cached && cached.v !== "letter";
-        ts.icon = ts.hasImage ? cached.v : ts.letterIcon();
+        // запомненная встроенная картинка (data:) из старых версий - тоже не годится
+        ts.hasImage = ts.cached && /^https?:/i.test(cached.v);
+        // ещё не проверяли этот сайт: сразу ссылка на значок, который дало расширение, иначе буква
+        ts.icon = ts.hasImage ? cached.v : !ts.cached && ts.fav ? ts.fav : ts.letterUrl;
         // Название вписываем прямо в тег <title> при разборе страницы -
         // Safari берёт название вкладки оттуда
         // Буквы, а не эмодзи: полоса вкладок Safari убирает эмодзи из начала названия
@@ -122,7 +128,7 @@
     <p class="url" id="url"></p>
     <p class="hint" id="hint">Нажми в любом месте или Enter, чтобы вернуть страницу</p>
   </main>
-  <footer>Tab Sleeper - страница выгружена из памяти · v13</footer>
+  <footer>Tab Sleeper - страница выгружена из памяти · v14</footer>
   <script>
     (function () {
       var ts = window.TS;
@@ -174,28 +180,6 @@
 
       // Первая загрузка для этого сайта: пробуем встроить настоящий значок.
       // Получится только если сайт разрешает брать значок с других страниц.
-      function toDataUrl(src) {
-        return new Promise(function (resolve) {
-          var img = new Image();
-          img.crossOrigin = "anonymous";
-          var t = setTimeout(function () { resolve(""); }, 5000);
-          img.onload = function () {
-            clearTimeout(t);
-            try {
-              if (img.naturalWidth < 2) return resolve("");
-              var c = document.createElement("canvas");
-              c.width = c.height = 64;
-              c.getContext("2d").drawImage(img, 0, 0, 64, 64);
-              resolve(c.toDataURL("image/png"));
-            } catch (e) {
-              resolve("");
-            }
-          };
-          img.onerror = function () { clearTimeout(t); resolve(""); };
-          img.src = src;
-        });
-      }
-
       var candidates = [];
       if (ts.fav) candidates.push(ts.fav);
       candidates.push(ts.origin + "/favicon.ico", ts.origin + "/apple-touch-icon.png");
@@ -217,16 +201,15 @@
         for (var j = 0; j < candidates.length && !result; j++) {
           if (await plainLoad(candidates[j])) result = candidates[j];
         }
-        // 2) ссылка не грузится - пробуем встроить картинку
-        for (var i = 0; i < candidates.length && !result; i++) result = await toDataUrl(candidates[i]);
+        // 2) ссылка не грузится - остаётся буква (встроенную картинку Safari не запоминает)
         try {
           localStorage.setItem(ts.key, JSON.stringify({ v: result || "letter", ts: Date.now() }));
         } catch (e) {
           return;
         }
-        // Нашли значок - перезагружаемся один раз, чтобы Safari взял его при загрузке.
-        // 3) Не нашли - буква уже стоит, ничего не делаем.
-        if (result) location.reload();
+        // Перезагружаемся один раз, если значок вкладки должен поменяться, -
+        // Safari берёт значок только при загрузке страницы
+        if ((result || ts.letterUrl) !== ts.icon) location.reload();
       })();
     })();
   </script>
