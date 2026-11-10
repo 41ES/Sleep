@@ -40,14 +40,9 @@
           if (i > 0 && /^(co|com|net|org|gov|edu|ac)$/.test(parts[i]) && parts[parts.length - 1].length === 2) i--;
           return ((parts[i] || "?")[0] || "?").toUpperCase();
         })(ts.host);
-        // v7: значок теперь запоминаем ссылкой на файл сайта, а не встроенной картинкой -
-        // встроенную Safari не сохраняет, и у вкладок, не открытых после запуска Safari,
-        // вместо значка была серая буква адреса страницы сна ("G" от github.io)
-        ts.key = "ts-icon-v8:" + ts.host;
-        // Буква - готовой картинкой из этой же папки (l-Y.png), а не нарисованной на лету:
-        // нарисованную (data:) Safari не запоминает и у неоткрытых вкладок показывает
-        // вместо неё серую букву адреса страницы сна - "G" от github.io
-        ts.letterUrl = new URL("l-" + (/^[A-Z0-9]$/.test(ts.letter) ? ts.letter : "_") + ".png", location.href).href;
+        // v9: значок встраиваем картинкой (data:). Проверка в Safari показала, что значок
+        // ссылкой на чужой сайт Safari для вкладки не берёт вовсе - выходила серая "G".
+        ts.key = "ts-icon-v9:" + ts.host;
 
         ts.letterIcon = function () {
           var c = document.createElement("canvas");
@@ -70,10 +65,8 @@
         var cached = null;
         try { cached = JSON.parse(localStorage.getItem(ts.key) || "null"); } catch (e) {}
         ts.cached = !!(cached && cached.v && Date.now() - cached.ts < 30 * 864e5);
-        // запомненная встроенная картинка (data:) из старых версий - тоже не годится
-        ts.hasImage = ts.cached && /^https?:/i.test(cached.v);
-        // ещё не проверяли этот сайт: сразу ссылка на значок, который дало расширение, иначе буква
-        ts.icon = ts.hasImage ? cached.v : !ts.cached && ts.fav ? ts.fav : ts.letterUrl;
+        ts.hasImage = ts.cached && /^data:image\//.test(cached.v);
+        ts.icon = ts.hasImage ? cached.v : ts.letterIcon();
         // Название вписываем прямо в тег <title> при разборе страницы -
         // Safari берёт название вкладки оттуда
         // Буквы, а не эмодзи: полоса вкладок Safari убирает эмодзи из начала названия
@@ -128,7 +121,7 @@
     <p class="url" id="url"></p>
     <p class="hint" id="hint">Нажми в любом месте или Enter, чтобы вернуть страницу</p>
   </main>
-  <footer>Tab Sleeper - страница выгружена из памяти · v15<br><span id="diag" style="opacity:.7"></span></footer>
+  <footer>Tab Sleeper - страница выгружена из памяти · v16</footer>
   <script>
     (function () {
       var ts = window.TS;
@@ -174,14 +167,6 @@
         $("icon").appendChild(img);
       }
 
-      // Подсказка для поиска причины, если Safari не показывает значок вкладки
-      try {
-        var iconShort = /^data:/.test(ts.icon) ? "картинка" : ts.icon.replace(/^https?:\/\//, "").replace(/\?.*$/, "");
-        if (iconShort.length > 60) iconShort = iconShort.slice(0, 28) + "..." + iconShort.slice(-28);
-        $("diag").textContent = "значок: " + iconShort + " · " + (ts.cached ? "запомнен" : "новый") +
-          (ts.fav ? " · f" : "") + " · адрес " + location.href.length;
-      } catch (e) {}
-
       // Значок уже найден раньше (или у сайта его не взять) - всё уже на месте
       if (ts.hasImage) showInPage(ts.icon);
       if (ts.cached) return;
@@ -193,23 +178,32 @@
       candidates.push(ts.origin + "/favicon.ico", ts.origin + "/apple-touch-icon.png");
       candidates = candidates.filter(function (c, i) { return candidates.indexOf(c) === i; });
 
-      function plainLoad(src) {
+      function toDataUrl(src) {
         return new Promise(function (resolve) {
           var img = new Image();
-          var t = setTimeout(function () { resolve(false); }, 5000);
-          img.onload = function () { clearTimeout(t); resolve(img.naturalWidth > 1); };
-          img.onerror = function () { clearTimeout(t); resolve(false); };
+          img.crossOrigin = "anonymous";
+          var t = setTimeout(function () { resolve(""); }, 5000);
+          img.onload = function () {
+            clearTimeout(t);
+            try {
+              if (img.naturalWidth < 2) return resolve("");
+              var c = document.createElement("canvas");
+              c.width = c.height = 64;
+              c.getContext("2d").drawImage(img, 0, 0, 64, 64);
+              resolve(c.toDataURL("image/png"));
+            } catch (e) {
+              resolve("");
+            }
+          };
+          img.onerror = function () { clearTimeout(t); resolve(""); };
           img.src = src;
         });
       }
 
       (async function () {
         var result = "";
-        // 1) ссылка на значок сайта, если он загружается - такой Safari запоминает
-        for (var j = 0; j < candidates.length && !result; j++) {
-          if (await plainLoad(candidates[j])) result = candidates[j];
-        }
-        // 2) ссылка не грузится - остаётся буква (встроенную картинку Safari не запоминает)
+        // встраиваем значок сайта; если сайт не даёт его встроить - остаётся буква
+        for (var i = 0; i < candidates.length && !result; i++) result = await toDataUrl(candidates[i]);
         try {
           localStorage.setItem(ts.key, JSON.stringify({ v: result || "letter", ts: Date.now() }));
         } catch (e) {
@@ -217,7 +211,7 @@
         }
         // Перезагружаемся один раз, если значок вкладки должен поменяться, -
         // Safari берёт значок только при загрузке страницы
-        if ((result || ts.letterUrl) !== ts.icon) location.reload();
+        if (result) location.reload();
       })();
     })();
   </script>
