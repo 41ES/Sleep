@@ -5,17 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
   <meta name="color-scheme" content="dark">
+  <!-- Значок вкладки - всегда значок Tab Sleeper (файл рядом со страницей).
+       Значки чужих сайтов Safari для этой страницы показывал ненадёжно - выходила серая "G". -->
+  <link rel="icon" type="image/png" href="icon.png">
   <script>
     // Страница сна Tab Sleeper. Адрес и название страницы - в части ссылки
     // после #, она не отправляется на сервер. Работает и без расширения.
-    //
-    // Safari читает значок вкладки только при загрузке страницы и не замечает,
-    // если его поменять позже. Поэтому значок вписываем сразу, пока страница
-    // разбирается. Что вписать, страница выясняет при первом визите на сайт
-    // и запоминает на 30 дней:
-    //   1) значок, встроенный в страницу (data:) - если сайт это разрешает;
-    //   2) ссылка на значок сайта - если встроить нельзя, но он загружается;
-    //   3) первая буква сайта - если значок не загружается вообще.
+
     window.TS = (function () {
       var ts = { ok: false };
       try {
@@ -40,33 +36,10 @@
           if (i > 0 && /^(co|com|net|org|gov|edu|ac)$/.test(parts[i]) && parts[parts.length - 1].length === 2) i--;
           return ((parts[i] || "?")[0] || "?").toUpperCase();
         })(ts.host);
-        // v9: значок встраиваем картинкой (data:). Проверка в Safari показала, что значок
-        // ссылкой на чужой сайт Safari для вкладки не берёт вовсе - выходила серая "G".
-        ts.key = "ts-icon-v9:" + ts.host;
-
-        ts.letterIcon = function () {
-          var c = document.createElement("canvas");
-          c.width = c.height = 64;
-          var g = c.getContext("2d");
-          g.fillStyle = "#7a5af8";
-          g.fillRect(0, 0, 64, 64);
-          g.fillStyle = "#fff";
-          g.font = "bold 40px -apple-system, Helvetica, sans-serif";
-          g.textAlign = "center";
-          g.textBaseline = "middle";
-          g.fillText(ts.letter, 32, 35);
-          return c.toDataURL("image/png");
-        };
-
         var esc = function (s) {
           return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         };
 
-        var cached = null;
-        try { cached = JSON.parse(localStorage.getItem(ts.key) || "null"); } catch (e) {}
-        ts.cached = !!(cached && cached.v && Date.now() - cached.ts < 30 * 864e5);
-        ts.hasImage = ts.cached && /^data:image\//.test(cached.v);
-        ts.icon = ts.hasImage ? cached.v : ts.letterIcon();
         // Название вписываем прямо в тег <title> при разборе страницы -
         // Safari берёт название вкладки оттуда
         // Буквы, а не эмодзи: полоса вкладок Safari убирает эмодзи из начала названия
@@ -75,8 +48,6 @@
         ts.mark = mark ? mark + (/[A-Za-z]$/.test(mark) ? "\u00b7" : "") : "";
         ts.fullTitle = ts.mark + ts.title.replace(/^(\s*((zZ|Zz)(\s+|\u00b7)|(\u2022|\u25cb|\[z\]|~)\s*))+/, "");
         document.write("<title>" + esc(ts.fullTitle) + "</title>");
-        document.write('<link rel="icon" href="' + esc(ts.icon) + '">');
-        document.write('<link rel="shortcut icon" href="' + esc(ts.icon) + '">');
       } catch (e) {
         ts.ok = false;
       }
@@ -121,7 +92,7 @@
     <p class="url" id="url"></p>
     <p class="hint" id="hint">Нажми в любом месте или Enter, чтобы вернуть страницу</p>
   </main>
-  <footer>Tab Sleeper - страница выгружена из памяти · v16</footer>
+  <footer>Tab Sleeper - страница выгружена из памяти · v18</footer>
   <script>
     (function () {
       var ts = window.TS;
@@ -139,6 +110,7 @@
       function applyTitle() { if (document.title !== ts.fullTitle) document.title = ts.fullTitle; }
       applyTitle();
       window.addEventListener("load", applyTitle);
+
       setTimeout(applyTitle, 1000);
       document.addEventListener("visibilitychange", applyTitle);
       $("url").textContent = ts.target;
@@ -167,52 +139,17 @@
         $("icon").appendChild(img);
       }
 
-      // Значок уже найден раньше (или у сайта его не взять) - всё уже на месте
-      if (ts.hasImage) showInPage(ts.icon);
-      if (ts.cached) return;
-
-      // Первая загрузка для этого сайта: пробуем встроить настоящий значок.
-      // Получится только если сайт разрешает брать значок с других страниц.
+      // В карточке - значок сайта, если он загружается; иначе остаётся буква
       var candidates = [];
       if (ts.fav) candidates.push(ts.fav);
       candidates.push(ts.origin + "/favicon.ico", ts.origin + "/apple-touch-icon.png");
-      candidates = candidates.filter(function (c, i) { return candidates.indexOf(c) === i; });
-
-      function toDataUrl(src) {
-        return new Promise(function (resolve) {
-          var img = new Image();
-          img.crossOrigin = "anonymous";
-          var t = setTimeout(function () { resolve(""); }, 5000);
-          img.onload = function () {
-            clearTimeout(t);
-            try {
-              if (img.naturalWidth < 2) return resolve("");
-              var c = document.createElement("canvas");
-              c.width = c.height = 64;
-              c.getContext("2d").drawImage(img, 0, 0, 64, 64);
-              resolve(c.toDataURL("image/png"));
-            } catch (e) {
-              resolve("");
-            }
-          };
-          img.onerror = function () { clearTimeout(t); resolve(""); };
-          img.src = src;
-        });
-      }
-
-      (async function () {
-        var result = "";
-        // встраиваем значок сайта; если сайт не даёт его встроить - остаётся буква
-        for (var i = 0; i < candidates.length && !result; i++) result = await toDataUrl(candidates[i]);
-        try {
-          localStorage.setItem(ts.key, JSON.stringify({ v: result || "letter", ts: Date.now() }));
-        } catch (e) {
-          return;
-        }
-        // Перезагружаемся один раз, если значок вкладки должен поменяться, -
-        // Safari берёт значок только при загрузке страницы
-        if (result) location.reload();
-      })();
+      (function next(k) {
+        if (k >= candidates.length) return;
+        var img = new Image();
+        img.onload = function () { if (img.naturalWidth > 1) showInPage(img.src); else next(k + 1); };
+        img.onerror = function () { next(k + 1); };
+        img.src = candidates[k];
+      })(0);
     })();
   </script>
 </body>
